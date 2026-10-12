@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIMAE - Sistema Integral de Monitoreo Edáfico (Santa Elena)</title>
+    <link rel="stylesheet" href="estilos.css">
+    <!-- Leaflet CSS para el Mapa Interactivo Real -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Chart.js para Gráficos Dinámicos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-size: 1.02rem; }
+        .card { box-shadow: 0 4px 15px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 25px; }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            padding-top: 50px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.9);
+        }
+        .modal-content {
+            margin: auto;
+            display: block;
+            max-width: 90%;
+            max-height: 85vh;
+            border-radius: 8px;
+            box-shadow: 0 5px 25px rgba(255,255,255,0.2);
+        }
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            color: #f1f1f1;
+            font-size: 45px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .close-modal:hover { color: #81c784; }
+        .map-card img { cursor: zoom-in; transition: transform 0.2s; height: 180px; object-fit: cover; width: 100%; }
+        .map-card img:hover { transform: scale(1.02); }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        #map {
+            height: 440px;
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-top: 15px;
+            z-index: 1;
+        }
+
+        .map-controls {
+            margin-bottom: 10px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .map-btn-filter {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .map-btn-filter:hover { background: var(--secondary); }
+
+        .search-box {
+            width: 100%;
+            padding: 14px 20px;
+            font-size: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+        .search-box:focus { border-color: var(--primary); outline: none; }
+
+        .btn-pdf {
+            background: #d32f2f;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            float: right;
+            transition: background 0.2s;
+        }
+        .btn-pdf:hover { background: #b71c1c; }
+
+        @media print {
+            .tabs-nav, .btn-pdf, header p, .author-tag { display: none !important; }
+            body { background: white; color: black; }
+            .tab-content { display: block !important; margin: 0; padding: 0; box-shadow: none; border: none; }
+            .card { border: none; box-shadow: none; page-break-after: always; }
+            header { background: none; color: black; padding: 0; text-align: left; box-shadow: none; }
+            header h1 { color: #1b4d3e; font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <button class="btn-pdf" onclick="window.print()">📄 Exportar Reporte PDF</button>
+        <h1>SIMAE</h1>
+        <p>Sistema Integral de Monitoreo y Análisis Edáfico — Península de Santa Elena</p>
+        <div class="author-tag">Autora: Ariana Picazo Suárez</div>
+    </header>
+
+    <!-- BARRA DE PESTAÑAS LIMPIA Y SEGURA PARA DEFENSA -->
+    <nav class="tabs-nav">
+        <button class="tab-btn active" onclick="switchTab(event, 'tab-resumen')">📊 Resumen</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-textura')">📐 Textura</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-triangulo-interactivo')">🔺 Triángulo Interactivo</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-mecanicas')">⚙️ Mecánicas</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-taxonomia')">🌱 Taxonomía</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-compactacion')">🧱 Compactación</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-infiltracion')">💧 Infiltración</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-quimica')">🧪 Fertilidad</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-calculadora')">🧮 Riego</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-simulador')">⚡ Simulador</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-cultivos')">🌾 Cultivos</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-enmiendas')">🧪 Enmiendas</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-asistente')">🤖 Asistente IA</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-desertificacion')">🏜️ Desertificación</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-cad')">💧 Retención CAD</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-graficos-dinamicos')">📈 Gráficos</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-mapa-real')">🌐 Mapa SIG</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-muestras')">🔍 Muestras</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-mapas')">🗺️ Galería</button>
+    </nav>
+
+    <!-- PESTAÑA 1: RESUMEN GENERAL -->
+    <div id="tab-resumen" class="tab-content active">
+        <section class="card">
+            <h2>Panel de Diagnóstico Edafológico</h2>
+            <p>Plataforma técnica especializada en la evaluación de propiedades físicas, mecánicas, taxonómicas y químicas del suelo en la región de Santa Elena.</p>
+            
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <h3>Textura Predominante</h3>
+                    <p>Franco - Arenoso</p>
+                    <span>Equilibrio textural en zona árida</span>
+                </div>
+                <div class="metric-box">
+                    <h3>Densidad Aparente</h3>
+                    <p>1.22 g/cm³</p>
+                    <span class="badge-optimo">Nivel Óptimo / Estable</span>
+                </div>
+                <div class="metric-box">
+                    <h3>pH Promedio</h3>
+                    <p>7.1 (Neutro)</p>
+                    <span class="badge-optimo">Adecuado para desarrollo</span>
+                </div>
+                <div class="metric-box">
+                    <h3>Infiltración Básica</h3>
+                    <p>55 mm/h</p>
+                    <span class="badge-optimo">Moderada a Alta</span>
+                </div>
+            </div>
+
+            <!-- Definiciones Clave de los Suelos de Santa Elena -->
+            <div style="margin-top: 35px; background: var(--accent); padding: 25px; border-radius: 12px; border-left: 6px solid var(--primary);">
+                <h3 style="color: var(--primary); margin-top: 0;">🌱 Definiciones Clave de Órdenes Edáficos en la Península</h3>
+                <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+                    <li><strong>Aridisoles:</strong> Suelos característicos de zonas áridas y semiáridas (predominantes en Santa Elena y Salinas). Presentan escasa materia orgánica y acumulaciones de carbonatos de calcio debido al déficit hídrico extremo.</li>
+                    <li><strong>Inceptisoles:</strong> Suelos jóvenes con un inicio de desarrollo de horizontes genéticos (presentes en valles aluviales y colinas bajas como La Libertad y Colanche). Poseen fertilidad moderada y buena respuesta agrícola.</li>
+                    <li><strong>Mollisoles:</strong> Suelos con un horizonte superficial oscuro, rico en materia orgánica y nutrientes (ubicados en zonas de mayor humedad como los bosques de cordillera en Manglaralto).</li>
+                    <li><strong>Entisoles:</strong> Suelos muy jóvenes o poco evolucionados, sin horizontes subsuperficiales diferenciados (comunes en zonas litorales y acantilados arenosos como Anconcito).</li>
+                </ul>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: TEXTURA -->
+    <div id="tab-textura" class="tab-content">
+        <section class="card">
+            <h2>Granulometría y Triángulo Textural</h2>
+            <div class="metrics-grid">
+                <div class="metric-box"><h3>Fracción Arena</h3><p>62.5 %</p></div>
+                <div class="metric-box"><h3>Fracción Limo</h3><p>23.0 %</p></div>
+                <div class="metric-box"><h3>Fracción Arcilla</h3><p>14.5 %</p></div>
+            </div>
+            <p style="margin-top: 20px;"><strong>Clasificación Textural USDA:</strong> Suelo clase <em>Franco-Arenoso (Sandy Loam)</em>.</p>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: TRIÁNGULO INTERACTIVO CON PIN DE UBICACIÓN -->
+    <div id="tab-triangulo-interactivo" class="tab-content">
+        <section class="card">
+            <h2>🔺 Triángulo Textural Interactivo (USDA)</h2>
+            <p>Ingresa los porcentajes granulométricos (deben sumar 100%). El sistema ubicará el marcador rojo exactamente en la zona textural correspondiente de tu imagen:</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1.3fr; gap: 25px; margin-top: 20px; align-items: start;">
+                <div style="background: var(--accent); padding: 20px; border-radius: 12px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 6px;">Porcentaje de Arena (%):</label>
+                    <input type="number" id="inputArena" value="62.5" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 12px;">
+                    
+                    <label style="font-weight: 600; display: block; margin-bottom: 6px;">Porcentaje de Limo (%):</label>
+                    <input type="number" id="inputLimo" value="23.0" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 12px;">
+                    
+                    <label style="font-weight: 600; display: block; margin-bottom: 6px;">Porcentaje de Arcilla (%):</label>
+                    <input type="number" id="inputArcilla" value="14.5" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 20px;">
+                    
+                    <button onclick="procesarTrianguloTextural()" style="background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%;">Ubicar en Triángulo</button>
+                    
+                    <div id="resultado-triangulo" style="margin-top: 15px; padding: 15px; border-radius: 6px; background: white; font-size: 1.05rem; display: none; border-left: 5px solid var(--secondary);"></div>
+                </div>
+
+                <div style="background: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #e0e0e0; text-align: center;">
+                    <h3 style="margin-top: 0; color: var(--secondary); font-size: 1.1rem;">Ubicación Textural en Diagrama USDA</h3>
+                    <div id="triangulo-container" style="position: relative; height: 380px; width: 100%; background-image: url('Usda.png'); background-size: contain; background-repeat: no-repeat; background-position: center; margin: 0 auto;">
+                        <div id="pinMarcador" style="position: absolute; width: 18px; height: 18px; background-color: #ff1744; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(0,0,0,0.6); transform: translate(-50%, -50%); transition: all 0.4s ease; display: none; z-index: 10;"></div>
+                    </div>
+                    <span style="font-size: 0.85rem; color: #555; display: block; margin-top: 12px;">El círculo rojo señala con precisión la región textural resultante en el triángulo.</span>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: PROPIEDADES MECÁNICAS -->
+    <div id="tab-mecanicas" class="tab-content">
+        <section class="card">
+            <h2>Propiedades Físico-Mecánicas e Hidráulicas</h2>
+            <div class="metrics-grid">
+                <div class="metric-box"><h3>Capacidad de Campo (CC)</h3><p>18.4 %</p></div>
+                <div class="metric-box"><h3>Punto de Marchitez (PMP)</h3><p>7.2 %</p></div>
+                <div class="metric-box"><h3>Agua Aprovechable</h3><p>11.2 %</p></div>
+                <div class="metric-box"><h3>Índice de Plasticidad</h3><p>8.5 %</p></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: TAXONOMÍA -->
+    <div id="tab-taxonomia" class="tab-content">
+        <section class="card">
+            <h2>Clasificación Taxonómica (Soil Taxonomy USDA)</h2>
+            <table>
+                <thead><tr><th>Orden</th><th>Suborden</th><th>Superficie</th><th>Características</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Aridisoles</strong></td><td>Haplocambids</td><td>54.2 %</td><td>Zonas áridas, carbonatos, baja M.O.</td></tr>
+                    <tr><td><strong>Inceptisoles</strong></td><td>Hapludalfs</td><td>28.5 %</td><td>Valles aluviales, desarrollo moderado.</td></tr>
+                    <tr><td><strong>Entisoles</strong></td><td>Psamments</td><td>17.3 %</td><td>Arenas litorales sin horizontes definidos.</td></tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: COMPACTACIÓN -->
+    <div id="tab-compactacion" class="tab-content">
+        <section class="card">
+            <h2>Análisis de Compactación y Densidad Aparente</h2>
+            <table>
+                <thead><tr><th>Perfil</th><th>Densidad (g/cm³)</th><th>Porosidad (%)</th><th>Compactación</th></tr></thead>
+                <tbody>
+                    <tr><td>0 - 15 cm</td><td>1.18</td><td>55.5 %</td><td><span class="badge-optimo">Baja</span></td></tr>
+                    <tr><td>15 - 30 cm</td><td>1.32</td><td>50.2 %</td><td><span class="badge-moderado">Moderada</span></td></tr>
+                    <tr><td>30 - 50 cm</td><td>1.45</td><td>45.3 %</td><td><span class="badge-critico">Alta</span></td></tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: INFILTRACIÓN -->
+    <div id="tab-infiltracion" class="tab-content">
+        <section class="card">
+            <h2>Ensayos de Infiltración (Infiltrómetro de Doble Anillo)</h2>
+            <div class="metrics-grid">
+                <div class="metric-box"><h3>Instantánea</h3><p>85.0 mm/h</p></div>
+                <div class="metric-box"><h3>Básica (Estable)</h3><p>52.4 mm/h</p></div>
+                <div class="metric-box"><h3>Permeabilidad</h3><p>Moderadamente Alta</p></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: QUÍMICA -->
+    <div id="tab-quimica" class="tab-content">
+        <section class="card">
+            <h2>Parámetros Químicos y Salud Edáfica</h2>
+            <table>
+                <thead><tr><th>Parámetro</th><th>Valor</th><th>Óptimo</th><th>Diagnóstico</th></tr></thead>
+                <tbody>
+                    <tr><td>pH (1:2.5)</td><td>7.12</td><td>6.5 - 7.5</td><td><span class="badge-optimo">Neutro</span></td></tr>
+                    <tr><td>Materia Orgánica</td><td>2.85 %</td><td>3.0 - 5.0%</td><td><span class="badge-moderado">Ligeramente Bajo</span></td></tr>
+                    <tr><td>Conductividad Eléctrica</td><td>1.40 dS/m</td><td>< 2.0</td><td><span class="badge-optimo">Sin salinidad</span></td></tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: RIEGO -->
+    <div id="tab-calculadora" class="tab-content">
+        <section class="card">
+            <h2>🧮 Calculadora de Lámina de Riego</h2>
+            <div style="background: var(--accent); padding: 25px; border-radius: 12px; margin-top: 20px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Profundidad Efectiva (cm):</label>
+                <input type="number" id="profundidad" value="30" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Humedad Actual (%):</label>
+                <input type="number" id="humedad" value="10" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 20px;">
+                <button onclick="calcularRiego()" style="background: var(--primary); color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: 600; cursor: pointer;">Calcular Lámina</button>
+                <div id="resultado-riego" style="margin-top: 20px; font-size: 1.2rem; font-weight: bold; color: var(--secondary);"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: SIMULADOR -->
+    <div id="tab-simulador" class="tab-content">
+        <section class="card">
+            <h2>⚡ Simulador Predictivo de Compactación</h2>
+            <div style="background: #f4f6f8; padding: 25px; border-radius: 12px; margin-top: 20px; border: 1px solid #ddd;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Densidad Aparente (g/cm³):</label>
+                <input type="number" id="simDensidad" step="0.01" value="1.35" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Porcentaje de Arena (%):</label>
+                <input type="number" id="simArena" value="65" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 20px;">
+                <button onclick="ejecutarSimulacion()" style="background: var(--secondary); color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: 600; cursor: pointer;">Ejecutar Diagnóstico</button>
+                <div id="resultado-simulacion" style="margin-top: 20px; padding: 15px; border-radius: 8px; background: white; font-size: 1.1rem; display: none;"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: CULTIVOS -->
+    <div id="tab-cultivos" class="tab-content">
+        <section class="card">
+            <h2>🌾 Evaluador Multicriterio de Cultivos y Especies (15 Opciones)</h2>
+            <p>Selecciona una especie para visualizar sus requerimientos edafológicos ideales (textura, pH) y su adaptación en Santa Elena:</p>
+            <div style="background: #f4f6f8; padding: 25px; border-radius: 12px; margin-top: 20px; border: 1px solid #ddd;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Seleccionar Especie / Cultivo:</label>
+                <select id="selectCultivo" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 20px;">
+                    <option value="algarrobo">Algarrobo (Prosopis pallida)</option>
+                    <option value="fernan">Fernán Sánchez (Triplaris cumingiana)</option>
+                    <option value="eucalipto">Eucalipto (Eucalyptus camaldulensis)</option>
+                    <option value="caoba">Caoba de Ecuador (Swietenia macrophylla)</option>
+                    <option value="maiz">Maíz Duro (Zea mays)</option>
+                    <option value="frejol">Fréjol (Phaseolus vulgaris)</option>
+                    <option value="limon">Cítricos / Limón (Citrus limon)</option>
+                    <option value="papaya">Papaya (Carica papaya)</option>
+                    <option value="tomate">Tomate Riñón (Solanum lycopersicum)</option>
+                    <option value="banano">Banano / Plátano (Musa paradisiaca)</option>
+                    <option value="cafe">Café Arábigo (Coffea arabica)</option>
+                    <option value="cacao">Cacao Nacional (Theobroma cacao)</option>
+                    <option value="papa">Papa (Solanum tuberosum)</option>
+                    <option value="arroz">Arroz (Oryza sativa)</option>
+                </select>
+                <button onclick="evaluarCultivo15()" style="background: var(--secondary); color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: 600; cursor: pointer;">Evaluar Compatibilidad</button>
+                <div id="resultado-cultivo" style="margin-top: 20px; display: none;"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: ENMIENDAS -->
+    <div id="tab-enmiendas" class="tab-content">
+        <section class="card">
+            <h2>🧪 Asistente Experto de Enmiendas y Diagnóstico</h2>
+            <div style="background: var(--accent); padding: 25px; border-radius: 12px; margin-top: 20px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Problema Detectado:</label>
+                <select id="selectProblema" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 20px;">
+                    <option value="materia">Bajo contenido de Materia Orgánica (&lt; 3%)</option>
+                    <option value="compactacion">Compactación severa en subsuelo (&gt; 1.45 g/cm³)</option>
+                    <option value="salinidad">Riesgo de salinización en zona litoral</option>
+                </select>
+                <button onclick="generarEnmienda()" style="background: var(--primary); color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: 600; cursor: pointer;">Generar Receta</button>
+                <div id="resultado-enmienda" style="margin-top: 20px; padding: 15px; border-radius: 8px; background: white; font-size: 1.1rem; display: none;"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: ASISTENTE EXPERTO IA -->
+    <div id="tab-asistente" class="tab-content">
+        <section class="card">
+            <h2>🤖 Asistente Experto de Diagnóstico Edáfico</h2>
+            <p>Selecciona una de las 10 consultas técnicas especializadas para obtener un dictamen automatizado:</p>
+            <div style="background: var(--accent); padding: 25px; border-radius: 12px; margin-top: 20px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Selecciona una Consulta:</label>
+                <select id="selectPreguntaIA" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 20px;">
+                    <option value="p1">1. ¿Cómo mejorar la retención de humedad en suelos arenosos de Salinas?</option>
+                    <option value="p2">2. ¿Qué sustrato usar para optimizar la fertilidad física en La Libertad?</option>
+                    <option value="p3">3. ¿Cómo solucionar la alta densidad aparente en capas profundas?</option>
+                    <option value="p4">4. ¿Qué impacto tiene el pH neutro (7.1) en la disponibilidad de nutrientes?</option>
+                    <option value="p5">5. ¿Cuál es el riesgo de salinización por conductividad eléctrica elevada (CE > 3 dS/m)?</option>
+                    <option value="p6">6. ¿Cómo influyen los Aridisoles en la planificación territorial de la península?</option>
+                    <option value="p7">7. ¿Qué estrategias de mulching son más eficientes frente al estrés hídrico estacional?</option>
+                    <option value="p8">8. ¿Cómo interpretar la velocidad de infiltración básica (52 mm/h) en riego tecnificado?</option>
+                    <option value="p9">9. ¿Por qué los Inceptisoles de valles aluviales tienen mejor respuesta agrícola?</option>
+                    <option value="p10">10. ¿Qué protocolos edafológicos aplicar para la restauración de zonas degradadas?</option>
+                </select>
+                <button onclick="consultarIA()" style="background: var(--primary); color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: 600; cursor: pointer;">Consultar Dictamen Técnico</button>
+                <div id="resultado-ia" style="margin-top: 20px; padding: 18px; border-radius: 8px; background: white; font-size: 1.05rem; line-height: 1.6; display: none; border-left: 5px solid var(--secondary);"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: DESERTIFICACIÓN -->
+    <div id="tab-desertificacion" class="tab-content">
+        <section class="card">
+            <h2>🏜️ Matriz de Riesgo de Desertificación y Vulnerabilidad</h2>
+            <p>Evalúa el índice de aridez y la fragilidad del suelo frente a procesos de degradación territorial en los cantones:</p>
+            <div style="background: #f4f6f8; padding: 25px; border-radius: 12px; margin-top: 20px; border: 1px solid #ddd;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Seleccionar Cantón / Zona:</label>
+                <select id="selectDesertificacion" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 20px;">
+                    <option value="salinas">Salinas (Litoral Lluvias Escasas)</option>
+                    <option value="santaelena">Santa Elena - Centro / Tablazo (Zona Árida Central)</option>
+                    <option value="libertad">La Libertad (Zona Urbana)</option>
+                    <option value="manglaralto">Manglaralto (Cordillera Húmeda)</option>
+                </select>
+                <button onclick="evaluarDesertificacion()" style="background: var(--secondary); color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: 600; cursor: pointer;">Evaluar Vulnerabilidad</button>
+                <div id="resultado-desertificacion" style="margin-top: 20px; padding: 18px; border-radius: 8px; background: white; font-size: 1.1rem; display: none;"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: RETENCIÓN CAD -->
+    <div id="tab-cad" class="tab-content">
+        <section class="card">
+            <h2>💧 Simulador de Retención de Humedad y Capacidad de Agua Disponible (CAD)</h2>
+            <div style="background: var(--accent); padding: 25px; border-radius: 12px; margin-top: 20px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Profundidad del Perfil Analizado:</label>
+                <select id="selectPerfilCAD" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 20px;">
+                    <option value="15">Capa Superficial (0 - 15 cm)</option>
+                    <option value="30">Subsuelo Activo (15 - 30 cm)</option>
+                    <option value="50">Perfil Profundo (30 - 50 cm)</option>
+                </select>
+                <button onclick="calcularCAD()" style="background: var(--primary); color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: 600; cursor: pointer;">Calcular Almacenamiento CAD</button>
+                <div id="resultado-cad" style="margin-top: 20px; padding: 18px; border-radius: 8px; background: white; font-size: 1.1rem; display: none;"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: GRÁFICOS DINÁMICOS -->
+    <div id="tab-graficos-dinamicos" class="tab-content">
+        <section class="card">
+            <h2>📈 Panel de Gráficos Dinámicos Avanzados (10 Variables)</h2>
+            <div style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 8px;">
+                <button onclick="cambiarMetrica('mo')" style="background: var(--primary); color: white; border: none; padding: 9px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">1. Materia Orgánica</button>
+                <button onclick="cambiarMetrica('ph')" style="background: var(--secondary); color: white; border: none; padding: 9px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">2. pH</button>
+                <button onclick="cambiarMetrica('infiltracion')" style="background: #2980b9; color: white; border: none; padding: 9px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">3. Infiltración</button>
+                <button onclick="cambiarMetrica('densidad')" style="background: #d35400; color: white; border: none; padding: 9px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">4. Densidad</button>
+                <button onclick="cambiarMetrica('ce')" style="background: #8e44ad; color: white; border: none; padding: 9px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">5. Conductividad</button>
+                <button onclick="cambiarMetrica('arena')" style="background: #16a085; color: white; border: none; padding: 9px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">6. Arena</button>
+                <button onclick="cambiarMetrica('arcilla')" style="background: #c0392b; color: white; border: none; padding: 9px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">7. Arcilla</button>
+                <button onclick="cambiarMetrica('cc')" style="background: #27ae60; color: white; border: none; padding: 9px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">8. Capacidad Campo</button>
+                <button onclick="cambiarMetrica('pmp')" style="background: #e67e22; color: white; border: none; padding: 9px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">9. Marchitez</button>
+                <button onclick="cambiarMetrica('porosidad')" style="background: #34495e; color: white; border: none; padding: 9px 14px; border-radius: 6px; font-weight: bold; cursor: pointer;">10. Porosidad</button>
+            </div>
+            <div style="background: #fafafa; padding: 20px; border-radius: 12px; border: 1px solid #e0e0e0;">
+                <div style="position: relative; height: 380px; width: 100%;">
+                    <canvas id="chartDinamico"></canvas>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: MAPA SIG -->
+    <div id="tab-mapa-real" class="tab-content">
+        <section class="card">
+            <h2>🌐 Sistema de Información Geográfica (SIG) — Muestras Reales (Santa Elena)</h2>
+            <div class="map-controls">
+                <button class="map-btn-filter" onclick="filtrarMapa('todos')">🌐 Todas las Estaciones (6)</button>
+                <button class="map-btn-filter" onclick="filtrarMapa('vivero')">🌱 Urbano (La Libertad)</button>
+                <button class="map-btn-filter" onclick="filtrarMapa('aridos')">☀️ Áridos / Litoral (Salinas, Santa Elena, Anconcito)</button>
+                <button class="map-btn-filter" onclick="filtrarMapa('humedos')">🌳 Valles y Húmedos (Colanche, Manglaralto)</button>
+            </div>
+            <div id="map"></div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: BASE DE DATOS MUESTRAS -->
+    <div id="tab-muestras" class="tab-content">
+        <section class="card">
+            <h2>🔍 Base de Datos de Muestras Edáficas</h2>
+            <input type="text" id="buscador" class="search-box" onkeyup="filtrarTabla()" placeholder="Escribe para buscar...">
+            <div style="overflow-x: auto; max-height: 400px; border: 1px solid #ddd; border-radius: 8px;">
+                <table id="tabla-muestras">
+                    <thead><tr><th>ID</th><th>Cantón</th><th>Zona</th><th>Suelo</th><th>Textura</th><th>pH</th><th>M.O.</th></tr></thead>
+                    <tbody>
+                        <tr><td>M-01</td><td>La Libertad</td><td>Zona Urbana</td><td>Inceptisoles</td><td>Franco-Arenoso</td><td>7.1</td><td>2.85%</td></tr>
+                        <tr><td>M-02</td><td>Salinas</td><td>Litoral Árido</td><td>Aridisoles</td><td>Franco</td><td>7.8</td><td>0.61%</td></tr>
+                        <tr><td>M-03</td><td>Santa Elena</td><td>Tablazo Central</td><td>Aridisoles</td><td>Franco-Arenoso</td><td>7.4</td><td>0.53%</td></tr>
+                        <tr><td>M-04</td><td>Colanche</td><td>Ladera Aluvial</td><td>Inceptisoles</td><td>Franco-Limoarcilloso</td><td>6.8</td><td>3.20%</td></tr>
+                        <tr><td>M-05</td><td>Manglaralto</td><td>Bosque Cordillera</td><td>Mollisoles</td><td>Franco-Arcilloso</td><td>6.5</td><td>4.15%</td></tr>
+                        <tr><td>M-06</td><td>Anconcito</td><td>Acantilado Costero</td><td>Entisoles</td><td>Arenoso</td><td>7.9</td><td>0.52%</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- PESTAÑA: GALERÍA GRÁFICOS -->
+    <div id="tab-mapas" class="tab-content">
+        <section class="card">
+            <h2>🗺️ Galería de Gráficos Estáticos</h2>
+            <div class="gallery-grid">
+                <div class="map-card"><img src="img/mapa_calor_MO.png" alt="MO" onclick="openModal(this)"><div class="map-info"><h3>Materia Orgánica</h3></div></div>
+                <div class="map-card"><img src="img/infiltracion_suelos.png" alt="Inf" onclick="openModal(this)"><div class="map-info"><h3>Infiltración</h3></div></div>
+                <div class="map-card"><img src="img/distribucion_ph.png" alt="pH" onclick="openModal(this)"><div class="map-info"><h3>pH</h3></div></div>
+                <div class="map-card"><img src="img/erosion_suelos.png" alt="Erosión" onclick="openModal(this)"><div class="map-info"><h3>Erosión</h3></div></div>
+                <div class="map-card"><img src="img/balance_hidrico.png" alt="Balance" onclick="openModal(this)"><div class="map-info"><h3>Balance Hídrico</h3></div></div>
+                <div class="map-card"><img src="img/cic_suelos.png" alt="CIC" onclick="openModal(this)"><div class="map-info"><h3>CIC</h3></div></div>
+                <div class="map-card"><img src="img/conductividad_electrica.png" alt="CE" onclick="openModal(this)"><div class="map-info"><h3>Conductividad</h3></div></div>
+                <div class="map-card"><img src="img/densidad_aparente.png" alt="DA" onclick="openModal(this)"><div class="map-info"><h3>Densidad Aparente</h3></div></div>
+                <div class="map-card"><img src="img/indice_aridez.png" alt="Aridez" onclick="openModal(this)"><div class="map-info"><h3>Índice Aridez</h3></div></div>
+                <div class="map-card"><img src="img/indice_productividad.png" alt="IP" onclick="openModal(this)"><div class="map-info"><h3>Productividad</h3></div></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- MODAL -->
+    <div id="imgModal" class="modal">
+        <span class="close-modal" onclick="closeModal()">&times;</span>
+        <img class="modal-content" id="modalImg">
+    </div>
+
+    <footer>
+        <p>SIMAE &copy; 2026 — Desarrollado por Ariana Picazo Suárez (Península de Santa Elena)</p>
+    </footer>
+
+    <!-- LEAFLET JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        function switchTab(evt, tabName) {
+            let tabcontent = document.getElementsByClassName("tab-content");
+            for (let i = 0; i < tabcontent.length; i++) tabcontent[i].classList.remove("active");
+            let tablinks = document.getElementsByClassName("tab-btn");
+            for (let i = 0; i < tablinks.length; i++) tablinks[i].classList.remove("active");
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+            if (tabName === 'tab-mapa-real') setTimeout(() => map.invalidateSize(), 200);
+            if (tabName === 'tab-triangulo-interactivo') procesarTrianguloTextural();
+        }
+
+        function calcularRiego() {
+            let prof = parseFloat(document.getElementById('profundidad').value);
+            let hum = parseFloat(document.getElementById('humedad').value);
+            let cc = 18.4;
+            if (isNaN(prof) || isNaN(hum)) return;
+            let lamina = (Math.max(0, cc - hum) / 100) * prof * 1.22;
+            document.getElementById('resultado-riego').innerHTML = `Lámina Neta Requerida: ${lamina.toFixed(2)} mm`;
+        }
+
+        function ejecutarSimulacion() {
+            let da = parseFloat(document.getElementById('simDensidad').value);
+            let arena = parseFloat(document.getElementById('simArena').value);
+            let resDiv = document.getElementById('resultado-simulacion');
+            resDiv.style.display = "block";
+            let c = da > 1.45 ? "<b style='color:red;'>⚠️ Densidad alta: Restricción radicular.</b>" : "<b style='color:green;'>✅ Densidad en rango óptimo.</b>";
+            let e = arena > 60 ? "<b style='color:orange;'>⚠️ Alta susceptibilidad a erosión.</b>" : "<b style='color:green;'>✅ Estabilidad textural moderada.</b>";
+            resDiv.innerHTML = `<strong>Diagnóstico SIMAE:</strong><br>${c}<br>${e}`;
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            procesarTrianguloTextural();
+        });
+
+        function procesarTrianguloTextural() {
+            let a = parseFloat(document.getElementById('inputArena').value);
+            let l = parseFloat(document.getElementById('inputLimo').value);
+            let ar = parseFloat(document.getElementById('inputArcilla').value);
+            let res = document.getElementById('resultado-triangulo');
+            res.style.display = "block";
+
+            if (isNaN(a) || isNaN(l) || isNaN(ar) || Math.abs((a + l + ar) - 100) > 0.5) {
+                res.innerHTML = "<b style='color:red;'>⚠️ Error: Los porcentajes de Arena, Limo y Arcilla deben sumar exactamente 100%.</b>";
+                document.getElementById('pinMarcador').style.display = "none";
+                return;
+            }
+
+            let clase = "Franco (Loam)";
+            if (ar >= 40 && l >= 40) clase = "Arcillo-Limoso (Silty Clay)";
+            else if (ar >= 40 && a >= 45) clase = "Arcillo-Arenoso (Sandy Clay)";
+            else if (ar >= 40) clase = "Arcilloso (Clay)";
+            else if (ar >= 35 && a < 45) clase = "Franco Arcillo-Arcilloso";
+            else if (ar >= 27 && ar < 40 && a > 20 && a < 45) clase = "Franco Arcilloso (Clay Loam)";
+            else if (ar >= 27 && ar < 40 && a >= 45) clase = "Franco Arcillo-Arenoso (Sandy Clay Loam)";
+            else if (ar >= 7 && ar < 27 && l >= 50) clase = "Franco Limoso (Silt Loam)";
+            else if (ar < 12 && l >= 80) clase = "Limoso (Silt)";
+            else if (ar < 20 && a > 52) clase = "Franco Arenoso (Sandy Loam)";
+            else if (a >= 85) clase = "Arenoso (Sand)";
+            else if (ar < 20 && l > 50 && a < 52) clase = "Franco Limoso";
+
+            res.innerHTML = `<strong>Diagnóstico USDA Proyectado:</strong><br>
+                • Clase Textural: <b style="color:var(--primary); font-size: 1.1rem;">${clase}</b><br>
+                • Composición: Arena ${a}% | Limo ${l}% | Arcilla ${ar}%`;
+
+            let topY = 0.10, bottomY = 0.90, leftX = 0.15, rightX = 0.85, centerX = 0.50;
+            let total = a + l + ar;
+            let pA = a / total, pL = l / total, pAr = ar / total;
+
+            let posX = (pL * rightX + pA * leftX + pAr * centerX) * 100;
+            let posY = (pAr * topY + (1 - pAr) * bottomY) * 100;
+
+            let pin = document.getElementById('pinMarcador');
+            pin.style.left = posX + '%';
+            pin.style.top = posY + '%';
+            pin.style.display = "block";
+        }
+
+        function evaluarCultivo15() {
+            let key = document.getElementById('selectCultivo').value;
+            let res = document.getElementById('resultado-cultivo');
+            res.style.display = "block";
+
+            const fichas = {
+                algarrobo: {
+                    nombre: "Algarrobo (Prosopis pallida)",
+                    textura: "Franco a Arenosa (Aridisoles litorales)",
+                    ph: "6.5 - 8.0 (Neutro a Ligeramente Alcalino)",
+                    adaptacion: "Óptima adaptación en zonas áridas litorales de Salinas y Santa Elena. Posee raíces pivotantes profundas."
+                },
+                fernan: {
+                    nombre: "Fernán Sánchez (Triplaris cumingiana)",
+                    textura: "Franco-Limoarcillosa (Valles aluviales húmedos)",
+                    ph: "6.0 - 7.0 (Ligeramente ácido a neutro)",
+                    adaptacion: "Requiere mayor humedad edáfica; se adapta muy bien en zonas de colinas bajas y valles de Colanche."
+                },
+                eucalipto: {
+                    nombre: "Eucalipto (Eucalyptus camaldulensis)",
+                    textura: "Franco-Arenosa a Arenosa (Especie rústica)",
+                    ph: "5.5 - 7.0",
+                    adaptacion: "Alta resistencia a suelos pobres, aunque demanda altos volúmenes hídricos subterráneos."
+                },
+                caoba: {
+                    nombre: "Caoba de Ecuador (Swietenia macrophylla)",
+                    textura: "Franco-Arcillosa profunda y fértil",
+                    ph: "6.0 - 7.0",
+                    adaptacion: "Requiere suelos con buen drenaje y alta retención de humedad (zonas de microclima húmedo como Manglaralto)."
+                },
+                maiz: {
+                    nombre: "Maíz Duro (Zea mays)",
+                    textura: "Franco-Arenosa a Franco-Limosiva",
+                    ph: "6.0 - 7.2",
+                    adaptacion: "Moderada adaptación en época de invierno (lluvias estacionales); requiere riego complementario en verano."
+                },
+                frejol: {
+                    nombre: "Fréjol (Phaseolus vulgaris)",
+                    textura: "Franco-Arenosa (Suelos bien oxigenados)",
+                    ph: "6.5 - 7.0",
+                    adaptacion: "Buena respuesta en suelos agrícolas de valles aluviales con adecuada incorporación de materia orgánica."
+                },
+                limon: {
+                    nombre: "Cítricos / Limón (Citrus limon)",
+                    textura: "Franco a Franco-Arcillosa (Evitar encharcamientos)",
+                    ph: "6.0 - 7.5",
+                    adaptacion: "Requiere riego por goteo constante y control de la salinidad en zonas cercanas a la costa."
+                },
+                papaya: {
+                    nombre: "Papaya (Carica papaya)",
+                    textura: "Franco-Arenosa (Sensible a pudrición radicular por exceso de agua)",
+                    ph: "6.0 - 7.0",
+                    adaptacion: "Excelente desarrollo con riego tecnificado y suelos con óptima aireación y sin compactación."
+                },
+                tomate: {
+                    nombre: "Tomate Riñón (Solanum lycopersicum)",
+                    textura: "Franco-Arenosa o Franco-Arcillosa estructurada",
+                    ph: "6.0 - 6.8",
+                    adaptacion: "Requiere suelos con excelente drenaje y aporte constante de nutrientes mediante fertirriego."
+                },
+                banano: {
+                    nombre: "Banano / Plátano (Musa paradisiaca)",
+                    textura: "Franco-Limoarcillosa (Alta retención de humedad y nutrientes)",
+                    ph: "6.0 - 7.5",
+                    adaptacion: "Limitado en zonas áridas de la península; requiere microclimas húmedos (Manglaralto) o riego abundante."
+                },
+                cafe: {
+                    nombre: "Café Arábigo (Coffea arabica)",
+                    textura: "Franco-Arcillosa a Franco-Limosiva",
+                    ph: "6.0 - 6.5 (Ligeramente ácido)",
+                    adaptacion: "Se cultiva exitosamente en las zonas altas y boscosas de la cordillera peninsular."
+                },
+                cacao: {
+                    nombre: "Cacao Nacional (Theobroma cacao)",
+                    textura: "Franco-Arcillosa profunda y fértil",
+                    ph: "6.0 - 7.0",
+                    adaptacion: "Requiere alta disponibilidad hídrica y suelos ricos en materia orgánica (valles protegidos)."
+                },
+                papa: {
+                    nombre: "Papa (Solanum tuberosum)",
+                    textura: "Franco-Arenosa a Franco-Limosiva",
+                    ph: "5.5 - 6.5",
+                    adaptacion: "No apto para las condiciones de tierras bajas y cálidas de Santa Elena; requiere climas fríos andinos."
+                },
+                arroz: {
+                    nombre: "Arroz (Oryza sativa)",
+                    textura: "Arcillosa o Franco-Arcillosa (Con capacidad de inundación)",
+                    ph: "6.0 - 7.0",
+                    adaptacion: "Requiere mantos freáticos altos o disponibilidad masiva de agua para aniego (escaso en la península)."
+                }
+            };
+
+            let f = fichas[key];
+            if (f) {
+                res.innerHTML = `<div style="background:white; padding:20px; border-radius:8px; border:1px solid #ccc; border-left: 6px solid var(--primary);">
+                    <h3 style="color:var(--primary); margin-top:0;">🌱 Ficha Técnica: ${f.nombre}</h3>
+                    <p><strong>Textura de Suelo Ideal:</strong> ${f.textura}</p>
+                    <p><strong>pH Óptimo:</strong> ${f.ph}</p>
+                    <p><strong>Comportamiento en Santa Elena:</strong> ${f.adaptacion}</p>
+                </div>`;
+            }
+        }
+
+        function generarEnmienda() {
+            let prob = document.getElementById('selectProblema').value;
+            let res = document.getElementById('resultado-enmienda');
+            res.style.display = "block";
+            let receta = prob === 'materia' ? "Aplicar <b>15 t/ha de compost maduro</b> incorporado en los primeros 20 cm." : (prob === 'compactacion' ? "Realizar aradura vertical de cincelado a 40 cm." : "Aplicar riegos de lavado con alta lámina.");
+            res.innerHTML = `<strong>Receta Técnica de Enmienda:</strong><br>${receta}`;
+        }
+
+        function consultarIA() {
+            let preg = document.getElementById('selectPreguntaIA').value;
+            let res = document.getElementById('resultado-ia');
+            res.style.display = "block";
+            
+            let dictamenes = {
+                p1: "<b>Dictamen Técnico Académico:</b> Los suelos litorales de Salinas (Entisoles y Aridisoles arenosos) presentan una microporosidad muy deficiente y una Capacidad de Campo inferior al 12%. Desde la perspectiva de la física de suelos, se requiere la aplicación de enmiendas orgánicas estabilizadas (compost maduro o lombricompost a razón de 15-20 t/ha) para incrementar el complejo de cambio catiónico (CIC) y la superficie específica de las partículas. Adicionalmente, el uso de hidrogeles poliméricos y coberturas inertes (*mulching* orgánico de 5 cm) reduce la tasa de evaporación directa en superficie hasta en un 40%.",
+                p2: "<b>Dictamen Técnico Académico:</b> Para el análisis edafológico en La Libertad, el sustrato óptimo se formula combinando el suelo local Inceptisoles (franco-arenoso) con arena lavada y compost maduro en una proporción volumétrica 2:1:1. Esto garantiza una densidad aparente cercana a 1.22 g/cm³, pH neutro (7.1) que favorece la asimilación del fósforo, y una velocidad de infiltración que previene la saturación prolongada y el colapso radicular.",
+                p3: "<b>Dictamen Técnico Académico:</b> Una densidad aparente superior a 1.45 g/cm³ en el subsuelo (30-50 cm) genera una impedancia mecánica crítica que frena la elongación longitudinal de las raíces. La solución agronómica implica realizar un subsolado mecánico o aradura vertical profunda para romper la suela de labor, complementada con la siembra de especies de raíces pivotantes agresivas y la incorporación de abonos verdes que incrementen la macroporosidad estructural.",
+                p4: "<b>Dictamen Técnico Académico:</b> Un pH de 7.12 se encuentra dentro del rango óptimo agronómico (6.5 - 7.5). En este umbral de reacción del suelo, la disponibilidad de los macronutrientes primarios (Nitrógeno, Fósforo y Potasio) y secundarios (Calcio y Magnesio) alcanza su máxima eficiencia de absorción biológica, minimizando la fijación de fósforo por óxidos y evitando la toxicidad por aluminio.",
+                p5: "<b>Dictamen Técnico Académico:</b> Valores de Conductividad Eléctrica (CE) superiores a 3.0 dS/m generan un potencial osmótico negativo en la solución del suelo, dificultando la absorción hídrica pasiva y provocando estrés salino por acumulación de iones sodio ($Na^+$) y cloruro ($Cl^-$). Requiere el diseño de láminas de lavado por goteo con un 15-20% de fracción de lixiviación y sistemas de drenaje subsuperficial.",
+                p6: "<b>Dictamen Técnico Académico:</b> Los Aridisoles cubren más del 54% de la península y presentan acumulaciones cálcicas subsuperficiales (*horizonte cálcico*) y baja materia orgánica (< 1%). En el ordenamiento territorial, exigen restricciones estrictas para asentamientos sin alcantarillado pluvial (riesgo de socavamiento) y condicionan la agricultura a sistemas de riego presurizado.",
+                p7: "<b>Dictamen Técnico Académico:</b> El empleo de *mulching* orgánico (cáscara de arroz, bagazo de caña o restos de poda triturados a 5-7 cm de espesor) interrumpe la evaporación capilar ascendente, amortigua la temperatura superficial del sustrato y previene la formación de costras duras por impacto de gotas de lluvia o riego.",
+                p8: "<b>Dictamen Técnico Académico:</b> Una velocidad de infiltración básica de 52.4 mm/h clasifica al suelo como moderadamente alto en permeabilidad. En el diseño de riego tecnificado (goteo), esto implica utilizar caudales y frecuencias de aplicación ajustados para evitar la percolación profunda y el consiguiente lavado de nutrientes fuera de la zona radicular activa.",
+                p9: "<b>Dictamen Técnico Académico:</b> Los Inceptisoles presentes en valles aluviales y colinas bajas poseen un inicio de desarrollo pedogenético con acumulación moderada de arcillas y limos estables, lo que les otorga una mayor fertilidad natural y una estructura en bloques subangulares más favorable para la retención hídrica en comparación con los Aridisoles.",
+                p10: "<b>Dictamen Técnico Académico:</b> Los protocolos de restauración ecológica exigen un diagnóstico edafológico previo (como el que realiza SIMAE), la selección de especies nativas xerófitas tolerantes al estrés, la descompactación localizada y el monitoreo multitemporal de la humedad y fertilidad del suelo."
+            };
+
+            res.innerHTML = dictamenes[preg] || "Selecciona una consulta válida.";
+        }
+
+        function evaluarDesertificacion() {
+            let zon = document.getElementById('selectDesertificacion').value;
+            let res = document.getElementById('resultado-desertificacion');
+            res.style.display = "block";
+            let diag = "";
+            if (zon === 'salinas') diag = "<b style='color:var(--danger);'>🔴 Vulnerabilidad Muy Alta a la Desertificación (Salinas):</b> Índice P/ETP < 0.20. Predominio de Aridisoles litorales y fuerte riesgo de erosión eólica.";
+            else if (zon === 'santaelena') diag = "<b style='color:orange;'>🟠 Vulnerabilidad Alta (Santa Elena - Centro/Tablazo):</b> Suelos sujetos a fuerte estrés hídrico estacional, escasa materia orgánica y superficies de tablazo marino desprovistas de cobertura natural densa.";
+            else if (zon === 'libertad') diag = "<b style='color:goldenrod;'>🟡 Vulnerabilidad Moderada (La Libertad):</b> Zona urbana con influencia antrópica; requiere manejo activo de materia orgánica y riego tecnificado.";
+            else diag = "<b style='color:green;'>🟢 Vulnerabilidad Baja (Manglaralto):</b> Presencia de Mollisoles y mayor humedad en cordillera, con alta estabilidad biológica y vegetación densa.";
+            res.innerHTML = `<strong>Evaluación de Riesgo Territorial:</strong><br>${diag}`;
+        }
+
+        function calcularCAD() {
+            let prof = parseInt(document.getElementById('selectPerfilCAD').value);
+            let res = document.getElementById('resultado-cad');
+            res.style.display = "block";
+            let cadVal = prof === 15 ? 28.5 : (prof === 30 ? 56.2 : 84.0);
+            res.innerHTML = `<strong>Almacenamiento de Agua Disponible (CAD):</strong><br>• Capacidad de almacenamiento en perfil de ${prof} cm: <b style="color:var(--primary);">${cadVal} mm de agua útil</b> retenida entre CC y PMP.`;
+        }
+
+        function openModal(el) { document.getElementById("imgModal").style.display = "block"; document.getElementById("modalImg").src = el.src; }
+        function closeModal() { document.getElementById("imgModal").style.display = "none"; }
+
+        function filtrarTabla() {
+            let f = document.getElementById("buscador").value.toLowerCase();
+            let tr = document.getElementById("tabla-muestras").getElementsByTagName("tr");
+            for (let i = 1; i < tr.length; i++) {
+                tr[i].style.display = tr[i].innerText.toLowerCase().includes(f) ? "" : "none";
+            }
+        }
+
+        let chartDinamico;
+        window.addEventListener('DOMContentLoaded', () => {
+            const ctx = document.getElementById('chartDinamico').getContext('2d');
+            chartDinamico = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['La Libertad (Urbano)', 'Salinas (Litoral)', 'Santa Elena (Tablazo)', 'Colanche (Ladera)', 'Manglaralto (Cordillera)', 'Anconcito (Acantilado)'],
+                    datasets: [{ label: 'Materia Orgánica Promedio (%)', data: [2.85, 0.61, 0.53, 3.20, 4.15, 0.52], backgroundColor: '#1b4d3e', borderRadius: 6 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }
+            });
+        });
+
+        function cambiarMetrica(tipo) {
+            if (!chartDinamico) return;
+            const cfg = {
+                mo: { l: 'Materia Orgánica (%)', d: [2.85, 0.61, 0.53, 3.20, 4.15, 0.52], c: '#1b4d3e' },
+                ph: { l: 'pH Promedio', d: [7.1, 7.8, 7.4, 6.8, 6.5, 7.9], c: '#2e7d32' },
+                infiltracion: { l: 'Infiltración (mm/h)', d: [55, 18, 25, 42, 60, 112], c: '#2980b9' },
+                densidad: { l: 'Densidad Aparente (g/cm³)', d: [1.18, 1.48, 1.42, 1.25, 1.12, 1.50], c: '#d35400' },
+                ce: { l: 'Conductividad Eléctrica (dS/m)', d: [1.40, 3.20, 2.10, 0.95, 0.60, 4.10], c: '#8e44ad' },
+                arena: { l: 'Fracción Arena (%)', d: [62.5, 78.0, 65.0, 45.0, 35.0, 88.0], c: '#16a085' },
+                arcilla: { l: 'Fracción Arcilla (%)', d: [14.5, 8.0, 15.0, 28.0, 38.0, 5.0], c: '#c0392b' },
+                cc: { l: 'Capacidad de Campo (%)', d: [18.4, 12.1, 16.5, 24.0, 29.5, 9.8], c: '#27ae60' },
+                pmp: { l: 'Punto de Marchitez (%)', d: [7.2, 4.5, 6.2, 11.0, 14.2, 3.1], c: '#e67e22' },
+                porosidad: { l: 'Porosidad Total (%)', d: [55.5, 44.2, 46.4, 52.8, 57.7, 43.4], c: '#34495e' }
+            };
+            if (cfg[tipo]) {
+                chartDinamico.data.datasets[0].label = cfg[tipo].l;
+                chartDinamico.data.datasets[0].data = cfg[tipo].d;
+                chartDinamico.data.datasets[0].backgroundColor = cfg[tipo].c;
+                chartDinamico.update();
+            }
+        }
+
+        var map = L.map('map').setView([-2.0500, -80.7800], 10);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
+        var markersGroup = L.layerGroup().addTo(map);
+
+        const ests = [
+            { lat: -2.2333, lng: -80.9000, tipo: 'vivero', p: "<b>M-01: La Libertad (Zona Urbana)</b><br>Inceptisoles | pH: 7.1 | M.O.: 2.85%" },
+            { lat: -2.2158, lng: -80.9531, tipo: 'aridos', p: "<b>M-02: Salinas (Litoral Árido)</b><br>Aridisoles | pH: 7.8 | M.O.: 0.61%" },
+            { lat: -2.2262, lng: -80.8583, tipo: 'aridos', p: "<b>M-03: Santa Elena (Centro Tablazo)</b><br>Aridisoles | pH: 7.4 | M.O.: 0.53%" },
+            { lat: -2.0120, lng: -80.7100, tipo: 'humedos', p: "<b>M-04: Colanche (Ladera Aluvial)</b><br>Inceptisoles | pH: 6.8 | M.O.: 3.20%" },
+            { lat: -1.8286, lng: -80.7494, tipo: 'humedos', p: "<b>M-05: Manglaralto (Cordillera)</b><br>Mollisoles | pH: 6.5 | M.O.: 4.15%" },
+            { lat: -2.3250, lng: -80.8500, tipo: 'aridos', p: "<b>M-06: Anconcito (Acantilado)</b><br>Entisoles | pH: 7.9 | M.O.: 0.52%" }
+        ];
+
+        function filtrarMapa(tipo) {
+            markersGroup.clearLayers();
+            ests.forEach(e => {
+                if (tipo === 'todos' || e.tipo === tipo) L.marker([e.lat, e.lng]).addTo(markersGroup).bindPopup(e.p);
+            });
+        }
+        filtrarMapa('todos');
+    </script>
+</body>
+</html>
